@@ -52,7 +52,7 @@ class Seq2SeqTrainer(Trainer):
                  data_collator=None,
                  train_dataset=None,
                  eval_dataset=None,
-                 tokenizer=None,
+                 processing_class=None, # <--- 更改为 processing_class
                  model_init=None,
                  compute_metrics=None,
                  callbacks=None,
@@ -64,7 +64,7 @@ class Seq2SeqTrainer(Trainer):
             data_collator=data_collator,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            tokenizer=tokenizer,
+            processing_class=processing_class, # <--- 传递 processing_class
             model_init=model_init,
             compute_metrics=compute_metrics,
             callbacks=callbacks,
@@ -271,7 +271,7 @@ class Seq2SeqTrainer(Trainer):
 
             with torch.no_grad():
                 if use_mixed_precision:
-                    with autocast():
+                    with torch.amp.autocast('cuda'):
                         outputs = model(**inputs)
                 else:
                     outputs = model(**inputs)
@@ -294,12 +294,15 @@ class Seq2SeqTrainer(Trainer):
         return (loss, generated_tokens, labels)
 
     def _pad_tensors_to_max_len(self, tensor, max_length):
-        if self.tokenizer is None:
-            raise ValueError(f"Tensor need to be padded to `max_length={max_length}` but no tokenizer was passed when creating "
-                             "this `Trainer`. Make sure to create your `Trainer` with the appropriate tokenizer.")
-        # If PAD token is not defined at least EOS token has to be defined
-        pad_token_id = (self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id)
+        if self.processing_class is None:  # <--- 使用 self.processing_class
+            raise ValueError(
+                f"Tensor need to be padded to `max_length={max_length}` but no tokenizer was passed when creating "
+                "this `Trainer`. Make sure to create your `Trainer` with the appropriate tokenizer.")
+            # If PAD token is not defined at least EOS token has to be defined
+        pad_token_id = (
+            self.processing_class.pad_token_id if self.processing_class.pad_token_id is not None else self.processing_class.eos_token_id)  # <--- 使用 self.processing_class
 
-        padded_tensor = pad_token_id * torch.ones((tensor.shape[0], max_length), dtype=tensor.dtype, device=tensor.device)
+        padded_tensor = pad_token_id * torch.ones((tensor.shape[0], max_length), dtype=tensor.dtype,
+                                                  device=tensor.device)
         padded_tensor[:, :tensor.shape[-1]] = tensor
         return padded_tensor

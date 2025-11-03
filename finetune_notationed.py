@@ -17,6 +17,7 @@
 Fine-tuning the library models for sequence to sequence.
 所有参数硬编码在 if __name__ == "__main__": 块中，无需命令行解析。
 """
+import pickle
 import warnings
 # 忽略的warning ,当然你可以解除它
 warnings.filterwarnings(
@@ -332,10 +333,13 @@ if __name__ == "__main__":
     ##缓存位置，如果需要腾硬盘空间可以清理
     cache_dir='.\cache'
 
+    ## 你可以在CMD/bash用huggingface-cli下载，也可以直接把模型名称填到model_name_or_path里面
+    ## huggingface-cli download google/mt5-base --local-dir ./models
+
     ########## 需要修改的参数 #########
     model_args = ModelArguments(
         model_name_or_path="google/mt5-small",  # 替换为您想使用的预训练模型路径, 如果输入huggingface模型名称下载的话，它会保存在
-                                                # C:\Users\你的用户名\.cache\huggingface\hub
+                                                       # C:\Users\你的用户名\.cache\huggingface\hub
     )
 
     data_args = DataTrainingArguments(
@@ -348,29 +352,41 @@ if __name__ == "__main__":
         val_max_target_length=64,
         num_beams=3,
         preprocessing_num_workers=4,
+        ##调试用参数，只用于测试代码能不能跑 正常训练时请把这三个注释掉 否则会梯度爆炸
+        #max_train_samples=10,
+        #max_eval_samples=10,
+        #max_predict_samples=10,
     )
+
     #不想设置的可以注释掉，会使用默认值
     training_args = Seq2SeqTrainingArguments(
-        output_dir="./output_dir/mt5_finetune",  # !!! 替换为模型保存路径
+        output_dir="./fine_tune_checkpoints/mt5_finetune",  # !!! 替换为模型保存路径
         do_train=True,
-        do_eval=True,
+        do_eval=False,
         num_train_epochs=1,
-        max_steps=100,  #最大步数，到此步会停止训练，如果不需要最大步数请注释掉 测试代码我放的很小
+        max_steps=5000,  #最大步数，到此步会停止训练，如果不需要最大步数请注释掉 测试代码我放的很小
 
-        per_device_train_batch_size=4,
-        per_device_eval_batch_size=4,
+        per_device_train_batch_size=16,
+        per_device_eval_batch_size=16,
 
-        learning_rate=3e-5,  #初始学习率
+        learning_rate=5e-6,  #初始学习率
+        lr_scheduler_type='cosine',
+        warmup_ratio=0.1,
+        optim='adamw_torch',
+        max_grad_norm=1.0, #设置梯度上限防止梯度爆炸
+
         save_strategy="steps", #也可以用epoch
-        save_steps=100,
+        save_steps=5000,
         eval_strategy="steps",  #在部分 Seq2SeqTrainingArguments 版本中，这里可能需要修改为 evaluation_strategy
-        eval_steps=100,
-        load_best_model_at_end=True,  #评估表现最好的模型
+        eval_steps=5000,
+        logging_steps=10,  #多少step输出一次训练状况（这个值会保留在.pkl中绘图）
+        load_best_model_at_end=False,  #评估表现最好的模型
         metric_for_best_model="bleu",  #评估依据  ,默认是loss
-        greater_is_better=True,    #metric_for_best_model 是值越大越好 (如 BLEU) 还是越小越好 (如 Loss)
+        greater_is_better=True,        #metric_for_best_model 是值越大越好 (如 BLEU) 还是越小越好 (如 Loss)
         predict_with_generate=True,
+        prediction_loss_only=False,
         early_stopping_patience=5,
-        fp16=True,
+        fp16=False,  #fp16可以加速训练，但可能导致训练不稳定，use it at your own risk
         seed=42,
         report_to="none" # 若要启用日志记录器，请使用cmd运行，并输入你的API密钥，比如  wandb.login(key="[您的 API 密钥]")
     )
@@ -545,7 +561,7 @@ if __name__ == "__main__":
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,  # <--- 传递 processing_class
         data_collator=data_collator,
         callbacks=[es_callback] if es_callback else None,
         compute_metrics=compute_metrics_fn if training_args.predict_with_generate else None,
@@ -567,6 +583,15 @@ if __name__ == "__main__":
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
+
+        # --- 新增：保存完整的 Log History 到 .pkl 文件 ---
+        log_history_file = os.path.join(training_args.output_dir, "training_log_history.pkl")
+        # log_history 包含了每一步的 loss 和每次 eval 的结果
+        log_history = trainer.state.log_history
+        with open(log_history_file, "wb") as f:
+            pickle.dump(log_history, f)
+        logger.info(f"Full training log history saved to: {log_history_file}")
+        # -----------------------------------------------------
 
     # 14. Evaluation
     if training_args.do_eval:
