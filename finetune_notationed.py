@@ -364,7 +364,7 @@ if __name__ == "__main__":
         do_train=True,
         do_eval=False,
         num_train_epochs=1,
-        max_steps=5000,  #最大步数，到此步会停止训练，如果不需要最大步数请注释掉 测试代码我放的很小
+        max_steps=15000,  #最大步数，到此步会停止训练，如果不需要最大步数请注释掉 测试代码我放的很小
 
         per_device_train_batch_size=16,
         per_device_eval_batch_size=16,

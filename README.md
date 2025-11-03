@@ -85,6 +85,10 @@ if __name__ == "__main__":
 
 我测试的极端样例 训练batchsize只有4的时候，花了5000步才把'grad_norm'（梯度的norm）从上万拉到10左右, 总之越小的batchsize 就需要越小的梯度和越长的训练步数
 
+至于需要训练多少步，还在摸索，大概是用3到5 乘以 Steps per Epoch
+$$\text{Steps per Epoch} = \frac{\text{训练样本总数}}{\text{Batch Size}}$$
+
+
 #### 5.[可选项] 运行[loss_curves.py](loss_curves.py) 来画各种图 （未完成，因为测试没跑完）
 ```python
 checkpoint_path = "./checkpoints/" #把这个位置换成你训练好的checkpoint 文件夹，里面应该有个training_log_history.pkl文件
