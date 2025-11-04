@@ -12,6 +12,11 @@
 if __name__ == "__main__":
     ##缓存位置，如果需要腾硬盘空间可以清理
     cache_dir='.\cache'
+    ##ZY 251104 增加功能 从检查点接着训练 （注意！！ 请在从更新文件前备份自己训练时设置的参数）
+    resume_training_from_checkpoint = False  #不识别检查点，直接从头训练
+    #resume_training_from_checkpoint = True  #识别最后一个检查点继续训练
+    #resume_training_from_checkpoint = "./fine_tune_checkpoints/mt5_finetune/checkpoint-10000" #从某个特定检查点继续训练
+    
 
     ## 你可以在CMD/bash用huggingface-cli下载，也可以直接把模型名称填到model_name_or_path里面
     ## huggingface-cli download google/mt5-base --local-dir ./models
@@ -102,6 +107,16 @@ SMOOTHING_WINDOW = 30
 save_path='loss_curves.png'
 ######修改参数（完）########
 ```
+#### 6.[可选项] 运行[inference.py](inference.py) 来测试对话
+```python
+ # 替换为检查点目录路径。
+    CHECKPOINT_PATH = "./fine_tune_checkpoints/mt5_finetune/checkpoint-10000"
+    #预训练模型位置（被微调的模型文件）
+    BASE_MODEL_NAME = "models/mt5-base" 
+    # 测试文本
+    INPUT_TEXTS=['hello','what a good day today','早上好','今天天气真不错']
+```
+
 
 ##### 备注：Warning我没有管，会报的很热闹 (11月4日更新: Warning 应该不会狠狠报了)
 ##### 备注:代码相较原始版本进行了一定修改，比如取消了原本dataset.py的使用。直接读json文件。代码的测试环境见requirements.txt，我没有为这个项目专门设置虚拟环境，所以有不少没用的，仅供包冲突时参考

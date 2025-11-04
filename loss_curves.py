@@ -21,12 +21,12 @@ with open(checkpoint_path + "/training_log_history.pkl", "rb") as f:
 # 2. 转换为 DataFrame
 df = pd.DataFrame(log_history)
 
-# 3. 提取数据
 train_df = df.dropna(subset=['loss']).copy()  # 训练 Loss
 eval_df = df.dropna(subset=['eval_loss']).copy()  # 评估数据 (包含 eval_loss 和 eval_bleu)
 
-# 4. 数据预处理和缩放
+print("原始训练步数:",max(train_df['step']))
 
+# 4. 数据预处理和缩放
 # --- 4A. 横轴缩放 ---
 # 逻辑：将每一步的 step 乘以 batch_size
 if not train_df.empty:
@@ -100,5 +100,5 @@ ax2.grid(True)
 
 # 调整子图间距
 plt.tight_layout()
-plt.show()
 plt.savefig(save_path)
+plt.show()
