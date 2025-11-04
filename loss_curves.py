@@ -101,4 +101,4 @@ ax2.grid(True)
 # 调整子图间距
 plt.tight_layout()
 plt.show()
-plt.savefig(path)
+plt.savefig(save_path)
