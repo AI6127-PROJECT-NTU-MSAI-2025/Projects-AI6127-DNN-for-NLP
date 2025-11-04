@@ -1,0 +1,5 @@
+cache/
+models/
+fine_tune_checkpoints/
+*.log
+__pycache__/

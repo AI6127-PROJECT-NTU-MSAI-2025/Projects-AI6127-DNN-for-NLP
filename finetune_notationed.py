@@ -196,15 +196,26 @@ def get_preprocess_function(tokenizer: Any, model: Any, data_args: DataTrainingA
 
         model_inputs = collections.defaultdict(list)
         for src_line, tgt_line in zip(examples['src'], examples['tgt']):
-            # ... (预处理和分词逻辑与原文件相同)
             if src_line[-1] == ">":
                 src, lan = src_line[:-5], src_line[-4:]
             else:
                 src, lan = src_line[:-3], src_line[-3:]
             lan_to_token = {lan: lan}
 
-            src_tokens = tokenizer.tokenize(src, max_length=data_args.max_source_length, padding=False, truncation=True)
-            tgt_tokens = tokenizer.tokenize(tgt_line, max_length=max_target_length, padding=False, truncation=True)
+            # 修复M2M100Tokenizer的调用方式
+            if isinstance(tokenizer, M2M100Tokenizer):
+                # M2M100Tokenizer的encode方法支持这些参数
+                src_tokens = tokenizer.encode(src, max_length=data_args.max_source_length, 
+                                            padding=False, truncation=True, add_special_tokens=False)
+                tgt_tokens = tokenizer.encode(tgt_line, max_length=max_target_length, 
+                                            padding=False, truncation=True, add_special_tokens=False)
+                # 转换为tokens以便后续处理
+                src_tokens = tokenizer.convert_ids_to_tokens(src_tokens)
+                tgt_tokens = tokenizer.convert_ids_to_tokens(tgt_tokens)
+            else:
+                # 其他tokenizer使用原有方式
+                src_tokens = tokenizer.tokenize(src, max_length=data_args.max_source_length, padding=False, truncation=True)
+                tgt_tokens = tokenizer.tokenize(tgt_line, max_length=max_target_length, padding=False, truncation=True)
 
             if tgt_tokens and tgt_tokens[-1] != tokenizer.eos_token:
                 tgt_tokens.append(tokenizer.eos_token)
@@ -232,7 +243,7 @@ def get_preprocess_function(tokenizer: Any, model: Any, data_args: DataTrainingA
         ##调试功能，在不需要时请将其注释
         '''
         if len(examples['src']) > 0:
-            i = 0
+            i = 0;
             example = {
                 'src': examples['src'][i],
                 'input_ids': model_inputs["input_ids"][i],
@@ -260,9 +271,8 @@ def postprocess_text(preds: List[str], refs: List[str]) -> Tuple[List[str], List
 
 
 def compute_score(preds: List[str], refs: List[str]) -> Dict[str, float]:
-    # ... (compute_score 逻辑与原文件相同)
     score = {}
-    bleu = sacrebleu.corpus_bleu(preds, [refs])
+    bleu = sacrebleu.corpus_bleu(preds, [refs], tokenize='13a')
     score['bleu'] = bleu.score
 
     preds_tokenized = [pred.split() for pred in preds]
@@ -331,64 +341,64 @@ def get_compute_metrics_function(tokenizer: Any, data_args: DataTrainingArgument
 
 if __name__ == "__main__":
     ##缓存位置，如果需要腾硬盘空间可以清理
-    cache_dir='.\cache'
+    cache_dir='cache'
 
     ## 你可以在CMD/bash用huggingface-cli下载，也可以直接把模型名称填到model_name_or_path里面
-    ## huggingface-cli download google/mt5-base --local-dir ./models
+    ## huggingface-cli download facebook/m2m100_418M --local-dir ./models
 
     ########## 需要修改的参数 #########
     model_args = ModelArguments(
-        model_name_or_path="google/mt5-small",  # 替换为您想使用的预训练模型路径, 如果输入huggingface模型名称下载的话，它会保存在
-                                                       # C:\Users\你的用户名\.cache\huggingface\hub
+        model_name_or_path="facebook/m2m100_418M",  # 改为M2M100模型，可选: m2m100_418M, m2m100_1.2B
     )
 
     data_args = DataTrainingArguments(
-        data_path="data/crosslingual",  # 数据位置
-        data_name="En_Zh",  # 具体的任务
-        train_file="train.jsonl",   #最终的训练集位置会被拼接为 data_path/data_name/train_file
+        data_path="data/multilingual",  # 修改：使用多语言数据
+        data_name="",  
+        train_file="train.jsonl",
         validation_file="dev.jsonl",
+        test_file="test.jsonl",  # 添加测试文件
         max_source_length=512,
         max_target_length=128,
         val_max_target_length=64,
         num_beams=3,
         preprocessing_num_workers=4,
-        ##调试用参数，只用于测试代码能不能跑 正常训练时请把这三个注释掉 否则会梯度爆炸
-        #max_train_samples=10,
-        #max_eval_samples=10,
-        #max_predict_samples=10,
+        # max_train_samples=100,  # 可以取消注释用于快速测试
+        # max_eval_samples=50,   
+        # max_predict_samples=50, 
     )
 
-    #不想设置的可以注释掉，会使用默认值
     training_args = Seq2SeqTrainingArguments(
-        output_dir="./fine_tune_checkpoints/mt5_finetune",  # !!! 替换为模型保存路径
+        output_dir="./fine_tune_checkpoints/m2m100_multilingual",  # 修改：多语言任务专用文件夹
         do_train=True,
-        do_eval=False,
-        num_train_epochs=1,
-        max_steps=10000,  #最大步数，到此步会停止训练，如果不需要最大步数请注释掉 测试代码我放的很小
+        do_eval=True,  
+        do_predict=True,  # 启用预测
+        num_train_epochs=5,  # 增加训练轮数
+        max_steps=-1,  
 
         per_device_train_batch_size=16,
         per_device_eval_batch_size=16,
+        gradient_accumulation_steps=2,  # 有效batch size = 16 * 2 = 32
 
-        learning_rate=5e-6,  #初始学习率
+        learning_rate=2e-5,  # 多语言任务适合稍低的学习率
         lr_scheduler_type='cosine',
         warmup_ratio=0.1,
         optim='adamw_torch',
         max_grad_norm=1.0, #设置梯度上限防止梯度爆炸
 
-        save_strategy="steps", #也可以用epoch
-        save_steps=2000,
-        eval_strategy="steps",  #在部分 Seq2SeqTrainingArguments 版本中，这里可能需要修改为 evaluation_strategy
-        eval_steps=500,
-        logging_steps=10,  #多少step输出一次训练状况（这个值会保留在.pkl中绘图）
-        load_best_model_at_end=False,  #评估表现最好的模型
-        metric_for_best_model="bleu",  #评估依据  ,默认是loss
-        greater_is_better=True,        #metric_for_best_model 是值越大越好 (如 BLEU) 还是越小越好 (如 Loss)
+        save_strategy="epoch",  
+        eval_strategy="epoch",  
+        save_total_limit=4,
+        logging_steps=50,
+        load_best_model_at_end=True,  # 加载最佳模型  
+        metric_for_best_model="eval_bleu",  # 修正为带前缀的指标名  
+        greater_is_better=True,
         predict_with_generate=True,
         prediction_loss_only=False,
         early_stopping_patience=5,
-        fp16=False,  #fp16可以加速训练，但可能导致训练不稳定，use it at your own risk
+        fp16=False,  
+        dataloader_pin_memory=True,  
         seed=42,
-        report_to="none" # 若要启用日志记录器，请使用cmd运行，并输入你的API密钥，比如  wandb.login(key="[您的 API 密钥]")
+        report_to="none"
     )
 
     ########## 需要修改的参数 (完) #########

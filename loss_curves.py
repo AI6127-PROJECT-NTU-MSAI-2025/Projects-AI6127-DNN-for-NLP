@@ -5,7 +5,7 @@ import numpy as np
 
 ######修改参数########
 ## 在这里输入check_point文件夹位置
-checkpoint_path = "fine_tune_checkpoints/mt5_finetune"
+checkpoint_path = "fine_tune_checkpoints/m2m100_multilingual"
 # 设定 Batch Size (用于横轴缩放)
 train_batch_size = 16
 # 设定平滑窗口大小 (仅用于训练 Loss)
@@ -100,5 +100,5 @@ ax2.grid(True)
 
 # 调整子图间距
 plt.tight_layout()
+plt.savefig(save_path, dpi=300, bbox_inches='tight')
 plt.show()
-plt.savefig(save_path)

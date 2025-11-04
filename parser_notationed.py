@@ -439,7 +439,11 @@ if __name__ == '__main__':
                                    'data/crosslingual/De_En/test.src', 'data/crosslingual/De_En/test.tgt', 'En')
     # 生成 De_En 的测试集。
     '''
-    os.mkdir("./data/raw")
+    if not os.path.exists("./data/raw"):
+        os.mkdir("./data/raw")
+    else: # 删除非空目录
+        shutil.rmtree("./data/raw")
+        os.mkdir("./data/raw")
 
     # 最终数据会挪到 /data/raw 文件夹下
     shutil.move("./data/monolingual", "./data/raw/monolingual")
