@@ -351,6 +351,7 @@ if __name__ == "__main__":
     cache_dir='.\cache'
 
     ##ZY 251104 增加功能 从检查点接着训练 （注意！！ 请在从更新文件前备份自己训练时设置的参数）
+    ##注意：如果先前的训练已经结束，你可以通过增大max_step继续训练，但如果你使用了cosine annealing的LR schedule，继续训练会导致你的新增训练步数继续变小，基本为0
     resume_training_from_checkpoint = False  #不识别检查点，直接从头训练
     #resume_training_from_checkpoint = True  #识别最后一个检查点继续训练
     #resume_training_from_checkpoint = "./fine_tune_checkpoints/mt5_finetune/checkpoint-10000" #从某个特定检查点继续训练
