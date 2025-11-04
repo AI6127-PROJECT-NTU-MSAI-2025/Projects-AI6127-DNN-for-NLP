@@ -10,13 +10,9 @@ checkpoint_path = "fine_tune_checkpoints/mt5_finetune"
 train_batch_size = 16
 # 设定平滑窗口大小 (仅用于训练 Loss)
 SMOOTHING_WINDOW = 30
-#
+#图片保存位置
 save_path='loss_curves.png'
-
-
 ######修改参数（完）########
-
-
 
 
 with open(checkpoint_path + "/training_log_history.pkl", "rb") as f:

@@ -89,9 +89,18 @@ if __name__ == "__main__":
 $$\text{Steps per Epoch} = \frac{\text{训练样本总数}}{\text{Batch Size}}$$
 
 
-#### 5.[可选项] 运行[loss_curves.py](loss_curves.py) 来画各种图 （未完成，因为测试没跑完）
+#### 5.[可选项] 运行[loss_curves.py](loss_curves.py) 来画各种图
 ```python
-checkpoint_path = "./checkpoints/" #把这个位置换成你训练好的checkpoint 文件夹，里面应该有个training_log_history.pkl文件
+######修改参数########
+## 在这里输入check_point文件夹位置，里面应该有个.pkl文件
+checkpoint_path = "fine_tune_checkpoints/mt5_finetune"
+# 设定 Batch Size (用于横轴缩放)
+train_batch_size = 16
+# 设定平滑窗口大小 (仅用于训练 Loss)
+SMOOTHING_WINDOW = 30
+#图片保存位置
+save_path='loss_curves.png'
+######修改参数（完）########
 ```
 
 ##### 备注：Warning我没有管，会报的很热闹 (11月4日更新: Warning 应该不会狠狠报了)
