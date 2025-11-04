@@ -364,7 +364,7 @@ if __name__ == "__main__":
         do_train=True,
         do_eval=False,
         num_train_epochs=1,
-        max_steps=15000,  #最大步数，到此步会停止训练，如果不需要最大步数请注释掉 测试代码我放的很小
+        max_steps=10000,  #最大步数，到此步会停止训练，如果不需要最大步数请注释掉 测试代码我放的很小
 
         per_device_train_batch_size=16,
         per_device_eval_batch_size=16,
@@ -376,9 +376,9 @@ if __name__ == "__main__":
         max_grad_norm=1.0, #设置梯度上限防止梯度爆炸
 
         save_strategy="steps", #也可以用epoch
-        save_steps=5000,
+        save_steps=2000,
         eval_strategy="steps",  #在部分 Seq2SeqTrainingArguments 版本中，这里可能需要修改为 evaluation_strategy
-        eval_steps=5000,
+        eval_steps=500,
         logging_steps=10,  #多少step输出一次训练状况（这个值会保留在.pkl中绘图）
         load_best_model_at_end=False,  #评估表现最好的模型
         metric_for_best_model="bleu",  #评估依据  ,默认是loss
@@ -392,12 +392,8 @@ if __name__ == "__main__":
     )
 
     ########## 需要修改的参数 (完) #########
-
     global log_feature
     log_feature = True
-
-
-
 
     # 3. Setup logging
     logging.basicConfig(
