@@ -3,12 +3,20 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
+######修改参数########
 ## 在这里输入check_point文件夹位置
 checkpoint_path = "fine_tune_checkpoints/mt5_finetune"
 # 设定 Batch Size (用于横轴缩放)
 train_batch_size = 16
 # 设定平滑窗口大小 (仅用于训练 Loss)
 SMOOTHING_WINDOW = 30
+#
+save_path='loss_curves.png'
+
+
+######修改参数（完）########
+
+
 
 
 with open(checkpoint_path + "/training_log_history.pkl", "rb") as f:
@@ -97,3 +105,4 @@ ax2.grid(True)
 # 调整子图间距
 plt.tight_layout()
 plt.show()
+plt.savefig(path)
