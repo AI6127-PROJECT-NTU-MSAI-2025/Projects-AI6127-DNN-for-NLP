@@ -1,38 +1,99 @@
 import pickle
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 
-##在这里输入check_point文件夹位置
+## 在这里输入check_point文件夹位置
 checkpoint_path = "fine_tune_checkpoints/mt5_finetune"
+# 设定 Batch Size (用于横轴缩放)
+train_batch_size = 16
+# 设定平滑窗口大小 (仅用于训练 Loss)
+SMOOTHING_WINDOW = 30
 
-with open(checkpoint_path+"/training_log_history.pkl", "rb") as f:
+
+with open(checkpoint_path + "/training_log_history.pkl", "rb") as f:
     log_history = pickle.load(f)
 
 # 2. 转换为 DataFrame
 df = pd.DataFrame(log_history)
-#df.to_csv("log_history.csv", index=False)
 
-print(df.head(10))
-print(df.columns)
+# 3. 提取数据
+train_df = df.dropna(subset=['loss']).copy()  # 训练 Loss
+eval_df = df.dropna(subset=['eval_loss']).copy()  # 评估数据 (包含 eval_loss 和 eval_bleu)
 
-# 3. 提取训练 Loss (每一步)
-train_df = df.dropna(subset=['loss']) # loss 列有值的就是训练步骤的日志
-# 提取评估 Loss (每次评估)
-eval_df = df.dropna(subset=['eval_loss']) # eval_loss 列有值的就是评估步骤的日志
+# 4. 数据预处理和缩放
 
-# 4. 绘图
-plt.figure(figsize=(12, 6))
+# --- 4A. 横轴缩放 ---
+# 逻辑：将每一步的 step 乘以 batch_size
+if not train_df.empty:
+    train_df['scaled_step'] = train_df['step'] * train_batch_size
+if not eval_df.empty:
+    eval_df['scaled_step'] = eval_df['step'] * train_batch_size
 
-# 绘制训练 Loss
-plt.plot(train_df['step'], train_df['loss'], label='Training Loss (Step)', marker='.', linestyle='--', alpha=0.6)
+# --- 4B. 训练 Loss 平滑处理 ---
+if not train_df.empty:
+    # 应用指数加权移动平均 (EWMA)
+    train_df['smoothed_loss'] = train_df['loss'].ewm(span=SMOOTHING_WINDOW, adjust=False).mean()
+
+# 5. 绘图：创建包含两个子图的画布
+# ax1 用于 Loss，ax2 用于 BLEU
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)  # sharex=True 确保横轴一致
+
+# --- 子图 1: Loss 曲线 ---
+ax1.set_title('Training and Evaluation Loss Curve (Smoothed)')
+ax1.set_ylabel('Loss')
+
+# 绘制平滑后的训练 Loss
+if not train_df.empty:
+    ax1.plot(train_df['scaled_step'], train_df['smoothed_loss'],
+             label=f'Smoothed Training Loss (EWMA, span={SMOOTHING_WINDOW})',
+             linestyle='-',
+             color='blue',
+             alpha=0.8)
 
 # 绘制评估 Loss
 if not eval_df.empty:
-    plt.plot(eval_df['step'], eval_df['eval_loss'], label='Evaluation Loss (Checkpoint)', marker='o', linestyle='-', color='red')
+    ax1.plot(eval_df['scaled_step'], eval_df['eval_loss'],
+             label='Evaluation Loss (Checkpoint)',
+             marker='o',
+             linestyle='-',
+             color='red',
+             alpha=0.9)
 
-plt.xlabel('Training Step')
-plt.ylabel('Loss')
-plt.title('Training and Evaluation Loss Curve')
-plt.legend()
-plt.grid(True)
+ax1.legend()
+ax1.grid(True)
+
+# --- 子图 2: BLEU 指标曲线 ---
+ax2.set_title('Evaluation BLEU Scores')
+ax2.set_xlabel(f'Effective Training Step (Scaled by Batch Size {train_batch_size})')
+ax2.set_ylabel('BLEU Score')
+
+if not eval_df.empty:
+    # 绘制 eval_bleu (总分数)
+    ax2.plot(eval_df['scaled_step'], eval_df['eval_bleu'],
+             label='Total BLEU Score',
+             marker='o',
+             linestyle='-',
+             color='green',
+             linewidth=2)
+
+    # 绘制 eval_bleu-1 (1-gram 精度)
+    ax2.plot(eval_df['scaled_step'], eval_df['eval_bleu-1'],
+             label='BLEU-1 (Unigram Precision)',
+             marker='^',
+             linestyle='--',
+             color='orange')
+
+    # 绘制 eval_bleu-2 (2-gram 精度)
+    ax2.plot(eval_df['scaled_step'], eval_df['eval_bleu-2'],
+             label='BLEU-2 (Bigram Precision)',
+             marker='s',
+             linestyle=':',
+             color='purple')
+
+ax2.legend()
+ax2.grid(True)
+
+# 调整子图间距
+plt.tight_layout()
 plt.show()
