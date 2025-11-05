@@ -197,12 +197,6 @@ def get_preprocess_function(tokenizer: Any, model: Any, data_args: DataTrainingA
     log_example = True
 
     def preprocess_function(examples: Dict[str, List[str]]) -> Dict[str, List[List[int]]]:
-        # 修正: 移除 nonlocal max_target_length (因为它在外层函数中未被修改，且被当做参数传入)
-        # model_inputs = collections.defaultdict(list) # 注意：这里使用外层函数的 max_target_length 值
-
-        # 确保 max_target_length 在内层函数中可用
-        # 由于外层函数是工厂函数，这里可以直接使用 max_target_length
-
         model_inputs = collections.defaultdict(list)
         for src_line, tgt_line in zip(examples['src'], examples['tgt']):
             if src_line[-1] == ">":
@@ -211,37 +205,36 @@ def get_preprocess_function(tokenizer: Any, model: Any, data_args: DataTrainingA
                 src, lan = src_line[:-3], src_line[-3:]
             lan_to_token = {lan: lan}
 
-            # 修复M2M100Tokenizer的调用方式
+            # 统一的tokenization处理方式
             if isinstance(tokenizer, M2M100Tokenizer):
-                # M2M100Tokenizer的encode方法支持这些参数
-                src_tokens = tokenizer.encode(src, max_length=data_args.max_source_length, 
-                                            padding=False, truncation=True, add_special_tokens=False)
-                tgt_tokens = tokenizer.encode(tgt_line, max_length=max_target_length, 
-                                            padding=False, truncation=True, add_special_tokens=False)
+                # M2M100Tokenizer使用encode方法
+                src_ids = tokenizer.encode(src, max_length=data_args.max_source_length, 
+                                         padding=False, truncation=True, add_special_tokens=False)
+                tgt_ids = tokenizer.encode(tgt_line, max_length=max_target_length, 
+                                         padding=False, truncation=True, add_special_tokens=False)
                 # 转换为tokens以便后续处理
-                src_tokens = tokenizer.convert_ids_to_tokens(src_tokens)
-                tgt_tokens = tokenizer.convert_ids_to_tokens(tgt_tokens)
-            else:
-                # 其他tokenizer使用原有方式
-                src_tokens = tokenizer.tokenize(src, max_length=data_args.max_source_length, padding=False, truncation=True)
-                tgt_tokens = tokenizer.tokenize(tgt_line, max_length=max_target_length, padding=False, truncation=True)
-            ##ZY 251105 修改 慢速tokenizer
-            if data_args.use_slow_tokenizer:
-                # 1. 对 src 文本进行分词，移除不支持的参数
-                src_tokens = tokenizer.tokenize(src) 
-                # 2. 手动应用源文本截断 (Truncation)
+                src_tokens = tokenizer.convert_ids_to_tokens(src_ids)
+                tgt_tokens = tokenizer.convert_ids_to_tokens(tgt_ids)
+            elif data_args.use_slow_tokenizer:
+                # 慢速tokenizer：先tokenize再手动截断
+                src_tokens = tokenizer.tokenize(src)
                 if data_args.max_source_length is not None:
                     src_tokens = src_tokens[:data_args.max_source_length]
-                # 3. 对 tgt 文本进行分词，移除不支持的参数
+                
                 tgt_tokens = tokenizer.tokenize(tgt_line)
-                # 4. 手动应用目标文本截断 (Truncation)
                 if max_target_length is not None:
                     # 目标序列的长度需要为后面手动添加 EOS token 留出 1 个位置
                     tgt_tokens = tgt_tokens[:max_target_length - 1]
             else:
-                src_tokens = tokenizer.tokenize(src, max_length=data_args.max_source_length, padding=False, truncation=True)
-                tgt_tokens = tokenizer.tokenize(tgt_line, max_length=max_target_length, padding=False, truncation=True)
+                # 快速tokenizer：使用encode然后转换为tokens
+                src_ids = tokenizer.encode(src, max_length=data_args.max_source_length, 
+                                         padding=False, truncation=True, add_special_tokens=False)
+                tgt_ids = tokenizer.encode(tgt_line, max_length=max_target_length, 
+                                         padding=False, truncation=True, add_special_tokens=False)
+                src_tokens = tokenizer.convert_ids_to_tokens(src_ids)
+                tgt_tokens = tokenizer.convert_ids_to_tokens(tgt_ids)
 
+            # 确保目标序列有EOS token
             if tgt_tokens and tgt_tokens[-1] != tokenizer.eos_token:
                 tgt_tokens.append(tokenizer.eos_token)
 
@@ -253,7 +246,9 @@ def get_preprocess_function(tokenizer: Any, model: Any, data_args: DataTrainingA
             elif isinstance(tokenizer, M2M100Tokenizer):
                 pass
             else:
-                src_tokens = src_tokens + tokenizer.tokenize(lan) + [tokenizer.eos_token]
+                # 对于其他tokenizer，需要tokenize语言标记
+                lan_tokens = tokenizer.tokenize(lan) if hasattr(tokenizer, 'tokenize') else [lan]
+                src_tokens = src_tokens + lan_tokens + [tokenizer.eos_token]
 
             input_id = tokenizer.convert_tokens_to_ids(src_tokens)
             label = tokenizer.convert_tokens_to_ids(tgt_tokens)
@@ -264,25 +259,6 @@ def get_preprocess_function(tokenizer: Any, model: Any, data_args: DataTrainingA
             if isinstance(tokenizer, M2M100Tokenizer):
                 lang_name = lan.lower().replace("<", "").replace(">", "").replace(" ", "")
                 model.config.forced_bos_token_id = lang_name
-
-        ##调试功能，在不需要时请将其注释
-        '''
-        if len(examples['src']) > 0:
-            i = 0;
-            example = {
-                'src': examples['src'][i],
-                'input_ids': model_inputs["input_ids"][i],
-                'input_ids_deocde': tokenizer.convert_ids_to_tokens(model_inputs["input_ids"][i]),
-                'tgt': examples['tgt'][i],
-                'labels': model_inputs["labels"][i],
-                'labels_decode': tokenizer.convert_ids_to_tokens(model_inputs["labels"][i])
-            }
-            log_strs = ["*** Input Example ***"]
-            for k, v in example.items():
-                log_strs.append(k + ':\n  ' + str(v))
-            logger.info('\n'.join(log_strs))
-        ##调试功能，在不需要时请将其注释 (结束)
-        '''
 
         return model_inputs
 
@@ -401,7 +377,7 @@ if __name__ == "__main__":
     cache_dir='cache'
 
     ##ZY 251104 增加功能 从检查点接着训练 （注意！！ 请在从更新文件前备份自己训练时设置的参数）
-    resume_training_from_checkpoint = None  #不识别检查点，直接从头训练
+    resume_training_from_checkpoint = "fine_tune_checkpoints/m2m100_1_2b_multilingual/checkpoint-11000"
     #resume_training_from_checkpoint = True  #识别最后一个检查点继续训练
     #resume_training_from_checkpoint = "./fine_tune_checkpoints/mt5_finetune/checkpoint-10000" #从某个特定检查点继续训练
 
@@ -426,7 +402,7 @@ if __name__ == "__main__":
         preprocessing_num_workers=4,
         length_penalty=1.5, #新增 长度惩罚 防止模型生成保守的过短的序列
         no_repeat_ngram_size=3,  #新增 重复生成惩罚 防止模型说车轱辘话
-        use_slow_tokenizer=True  #新增 可以使用慢速编码器来提高模型效果，避免生成大量的 <unk> 标记
+        use_slow_tokenizer=False  #新增 可以使用慢速编码器来提高模型效果，避免生成大量的 <unk> 标记
         ##调试用参数，只用于测试代码能不能跑 正常训练时请把这三个注释掉 否则会梯度爆炸
         #max_train_samples=10,
         #max_eval_samples=10,
@@ -658,21 +634,34 @@ if __name__ == "__main__":
             resume_from_checkpoint = resume_training_from_checkpoint
         else:
             resume_from_checkpoint = get_last_checkpoint(training_args.output_dir)
-
+    else:
+        resume_from_checkpoint = None
+    
+    '''
     if resume_from_checkpoint != None:
         logger.info(f"*** Resuming training from checkpoint: {resume_from_checkpoint} ***")
         # 尝试加载旧的日志历史记录
-        old_log_history_file = os.path.join(resume_from_checkpoint, "training_log_history.pkl")
-        if os.path.exists(old_log_history_file):
-            with open(old_log_history_file, "rb") as f:
-                old_log_history = pickle.load(f)
-            logger.info(f"Loaded {len(old_log_history)} entries from previous log history.")
+        state_json_path = os.path.join(resume_from_checkpoint, "trainer_state.json")
+        if os.path.exists(state_json_path):
+            try:
+                # 2. 从 JSON 加载完整的 TrainerState
+                logger.info(f"Loading previous trainer state from: {state_json_path}")
+                trainer_state = TrainerState.load_from_json(state_json_path)
+            
+                # 3. 从中提取 log_history
+                old_log_history = trainer_state.log_history
+                logger.info(f"Loaded {len(old_log_history)} entries from previous log history.")
+            except Exception as e:
+                logger.warning(f"Failed to load log history from {state_json_path}: {e}")
+                logger.warning("Starting with an empty log history.")
+                old_log_history = [] # 出错时重置为空
         else:
-            old_log_history = []
-            logger.warning("Could not find previous training log history to merge.")
+        # 如果这是一个合法的 checkpoint，它应该总是有这个文件
+        logger.warning(f"Could not find 'trainer_state.json' in {resume_from_checkpoint}.")
+        logger.warning("Starting with an empty log history.")
     else:
         old_log_history = []
-
+    '''
     # 13. Training
     if training_args.do_train:
         logger.info("*** Train ***")
