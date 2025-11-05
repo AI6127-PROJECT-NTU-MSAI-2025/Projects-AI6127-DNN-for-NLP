@@ -1,0 +1,55 @@
+{
+    "metrics": {
+        "eval_loss": 10.219696998596191,
+        "eval_bleu": 0.07103432717736706,
+        "eval_bleu-1": 0.16501650165016507,
+        "eval_bleu-2": 0.11765911033923047,
+        "eval_gen_len": 60.6,
+        "eval_runtime": 1.8824,
+        "eval_samples_per_second": 5.312,
+        "eval_steps_per_second": 0.531,
+        "epoch": 10.0
+    },
+    "outputs": [
+        {
+            "prediction": "Can Can you manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage",
+            "label": "Why not? See."
+        },
+        {
+            "prediction": "good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good",
+            "label": "Oh, great! It's delicious. You see, I am already putting on weight. There is one thing I don't like however, MSG."
+        },
+        {
+            "prediction": "good good good good         can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can",
+            "label": "According to some studies it may cause cancer."
+        },
+        {
+            "prediction": "up up to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to",
+            "label": "I just happen to have a question for you guys. Why do the Chinese cook the vegetables? You see what I mean is that most vitamin are destroyed when heated."
+        },
+        {
+            "prediction": "— — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —",
+            "label": "Yes, how do I get to your shop from Chilin?"
+        },
+        {
+            "prediction": "Hi Hi Hi Bill Bill, Hi Hi Hi Hi Hi Hi Hi Hi Hi Hi Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Hi Hi Hi Hi Hi Hi Hi Hi Hi Hi Hi Bill Bill Bill Bill Bill Bill Bill Bill Bill",
+            "label": "Jane, I ’ m on the other line, can you hang on for a second?"
+        },
+        {
+            "prediction": "to to to to to to to to to to to to to to to to to to to to to to to can Can Can Can Can Can I I have have have I have have have have have can can can Can Can Can Can Can Can I I I have have have have have I have have have have",
+            "label": "Right away, sir."
+        },
+        {
+            "prediction": "check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check",
+            "label": "Yes, sir, it is."
+        },
+        {
+            "prediction": "Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did",
+            "label": "Just Mr. White."
+        },
+        {
+            "prediction": "par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par par",
+            "label": "Andrew, this is Linda Chen."
+        }
+    ]
+}
