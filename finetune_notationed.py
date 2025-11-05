@@ -43,14 +43,17 @@ import transformers
 from transformers import (
     MT5Config,
     T5TokenizerFast,
+    T5Tokenizer,
     MBartConfig,
     MBart50TokenizerFast,
+    MBart50Tokenizer,
     MBartTokenizerFast,
+    MBartTokenizer,
     M2M100Config,
     M2M100Tokenizer,
     # HfArgumentParser, # 移除：不再需要命令行解析
     TrainingArguments,
-    set_seed
+    set_seed, TFOpenAIGPTDoubleHeadsModel
 )
 from transformers.trainer_callback import EarlyStoppingCallback
 from transformers import T5ForConditionalGeneration, MBartForConditionalGeneration, \
@@ -98,6 +101,9 @@ class DataTrainingArguments:
     max_predict_samples: Optional[int] = field(default=None)
     num_beams: Optional[int] = field(default=3)
     ignore_pad_token_for_loss: bool = field(default=True)
+    length_penalty: Optional[float] = field(default=1.0)
+    no_repeat_ngram_size: Optional[int] = field(default=0)
+    use_slow_tokenizer: bool = field(default=False)
 
 
 @dataclass
@@ -171,6 +177,9 @@ def get_gen_kwargs(model_name: str, tokenizer: Any, model: Any, data_args: DataT
     gen_kwargs = {
         "max_length": data_args.val_max_target_length,
         "num_beams": data_args.num_beams,
+        "length_penalty":data_args.length_penalty,
+        "no_repeat_ngram_size":data_args.no_repeat_ngram_size,
+        
         "early_stopping": True,
         "decoder_start_token_id": decoder_start_token_id,
         "eos_token_id": eos_token_id
@@ -214,6 +223,22 @@ def get_preprocess_function(tokenizer: Any, model: Any, data_args: DataTrainingA
                 tgt_tokens = tokenizer.convert_ids_to_tokens(tgt_tokens)
             else:
                 # 其他tokenizer使用原有方式
+                src_tokens = tokenizer.tokenize(src, max_length=data_args.max_source_length, padding=False, truncation=True)
+                tgt_tokens = tokenizer.tokenize(tgt_line, max_length=max_target_length, padding=False, truncation=True)
+            ##ZY 251105 修改 慢速tokenizer
+            if data_args.use_slow_tokenizer:
+                # 1. 对 src 文本进行分词，移除不支持的参数
+                src_tokens = tokenizer.tokenize(src) 
+                # 2. 手动应用源文本截断 (Truncation)
+                if data_args.max_source_length is not None:
+                    src_tokens = src_tokens[:data_args.max_source_length]
+                # 3. 对 tgt 文本进行分词，移除不支持的参数
+                tgt_tokens = tokenizer.tokenize(tgt_line)
+                # 4. 手动应用目标文本截断 (Truncation)
+                if max_target_length is not None:
+                    # 目标序列的长度需要为后面手动添加 EOS token 留出 1 个位置
+                    tgt_tokens = tgt_tokens[:max_target_length - 1]
+            else:
                 src_tokens = tokenizer.tokenize(src, max_length=data_args.max_source_length, padding=False, truncation=True)
                 tgt_tokens = tokenizer.tokenize(tgt_line, max_length=max_target_length, padding=False, truncation=True)
 
@@ -274,7 +299,7 @@ def compute_score(preds: List[str], refs: List[str]) -> Dict[str, float]:
     score = {}
     bleu = sacrebleu.corpus_bleu(preds, [refs], tokenize='13a')
     score['bleu'] = bleu.score
-
+    '''
     preds_tokenized = [pred.split() for pred in preds]
     refs_tokenized = [[ref.split()] for ref in refs]
     try:
@@ -287,9 +312,24 @@ def compute_score(preds: List[str], refs: List[str]) -> Dict[str, float]:
     except ZeroDivisionError as _:
         logger.info('the nltk bleu score is invalid')
         bleu_score = [0] * 2
-
+    #ZY 251105修改 不再使用两个不同的库计算bleu
     for i, n in enumerate([1, 2]):
         score[f'bleu-{n}'] = bleu_score[i] * 100
+    '''
+    # 3. 使用 sacrebleu 的 n-gram 精度 (precisions) 代替 NLTK 结果。
+    # sacrebleu.precisions 包含 [P1, P2, P3, P4] 精度，它们都在 0-100 范围内。
+    if len(bleu.precisions) >= 2:
+        # BLEU-1 对应的 1-gram 精度 P1 (0-100)
+        score['bleu-1'] = bleu.precisions[0]
+        # BLEU-2 对应的 2-gram 精度 P2 (0-100)
+        score['bleu-2'] = bleu.precisions[1]
+    else:
+        # 如果 sacrebleu 结果中没有 precisions，则置零
+        score['bleu-1'] = 0.0
+        score['bleu-2'] = 0.0
+        
+    # 移除原来使用 nltk 计算 bleu-1 和 bleu-2 的所有代码
+    # preds_tokenized = [pred.split() for pred in preds]
 
     return score
 
@@ -337,15 +377,36 @@ def get_compute_metrics_function(tokenizer: Any, data_args: DataTrainingArgument
     return compute_metrics
 
 
-# --- Main Execution Block ---
+def get_last_checkpoint(output_dir: str) -> Optional[str]:
+    """
+    在 output_dir 中查找最新的检查点目录 (e.g., 'checkpoint-1000').
+    如果 output_dir 本身是一个检查点，则直接返回它。
+    """
+    if os.path.isdir(output_dir) and "checkpoint" in output_dir:
+        return output_dir
+
+    all_checkpoints = [
+        os.path.join(output_dir, d)
+        for d in os.listdir(output_dir)
+        if os.path.isdir(os.path.join(output_dir, d)) and d.startswith("checkpoint-")
+    ]
+    if not all_checkpoints:
+        return None
+    all_checkpoints.sort(key=lambda x: int(x.split("-")[-1]))
+    return all_checkpoints[-1]
+
 
 if __name__ == "__main__":
     ##缓存位置，如果需要腾硬盘空间可以清理
     cache_dir='cache'
 
+    ##ZY 251104 增加功能 从检查点接着训练 （注意！！ 请在从更新文件前备份自己训练时设置的参数）
+    resume_training_from_checkpoint = None  #不识别检查点，直接从头训练
+    #resume_training_from_checkpoint = True  #识别最后一个检查点继续训练
+    #resume_training_from_checkpoint = "./fine_tune_checkpoints/mt5_finetune/checkpoint-10000" #从某个特定检查点继续训练
+
     ## 你可以在CMD/bash用huggingface-cli下载，也可以直接把模型名称填到model_name_or_path里面
-    ## huggingface-cli download facebook/m2m100_418M --local-dir ./models
-    resume_training_from_checkpoint = True
+    ## huggingface-cli download google/mt5-base --local-dir ./models
 
     ########## 需要修改的参数 #########
     model_args = ModelArguments(
@@ -359,13 +420,17 @@ if __name__ == "__main__":
         validation_file="dev.jsonl",
         test_file="test.jsonl",  # 添加测试文件
         max_source_length=512,
-        max_target_length=128,
-        val_max_target_length=64,
-        num_beams=3,
+        max_target_length=256,
+        val_max_target_length=256,
+        num_beams=5,
         preprocessing_num_workers=4,
-        # max_train_samples=100,  # 可以取消注释用于快速测试
-        # max_eval_samples=50,   
-        # max_predict_samples=50, 
+        length_penalty=1.5, #新增 长度惩罚 防止模型生成保守的过短的序列
+        no_repeat_ngram_size=3,  #新增 重复生成惩罚 防止模型说车轱辘话
+        use_slow_tokenizer=True  #新增 可以使用慢速编码器来提高模型效果，避免生成大量的 <unk> 标记
+        ##调试用参数，只用于测试代码能不能跑 正常训练时请把这三个注释掉 否则会梯度爆炸
+        #max_train_samples=10,
+        #max_eval_samples=10,
+        #max_predict_samples=10,
     )
 
     training_args = Seq2SeqTrainingArguments(
@@ -382,7 +447,7 @@ if __name__ == "__main__":
 
         learning_rate=2e-5,  # 多语言任务适合稍低的学习率
         lr_scheduler_type='cosine',
-        warmup_ratio=0.1,
+        warmup_ratio=0.05,
         optim='adamw_torch',
         max_grad_norm=1.0, #设置梯度上限防止梯度爆炸
 
@@ -454,15 +519,24 @@ if __name__ == "__main__":
     config, tokenizer, model = None, None, None
     if 't5' in model_args.model_name_or_path:
         config = MT5Config.from_pretrained(model_args.model_name_or_path)
-        tokenizer = T5TokenizerFast.from_pretrained(model_args.model_name_or_path)
+        if data_args.use_slow_tokenizer:
+            tokenizer = T5Tokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False)
+        else:
+            tokenizer = T5TokenizerFast.from_pretrained(model_args.model_name_or_path) ##ZY 20251105修改 添加慢速5Tokenizer
         model = T5ForConditionalGeneration.from_pretrained(model_args.model_name_or_path, config=config)
     elif 'mbart-25' in model_args.model_name_or_path:
         config = MBartConfig.from_pretrained(model_args.model_name_or_path)
-        tokenizer = MBartTokenizerFast.from_pretrained(model_args.model_name_or_path)
+        if data_args.use_slow_tokenizer:
+            tokenizer = MBartTokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False) #:todo: mbart的慢速tokenizer我没有测试，如果出现问题，可能需要修改 preprocess_function
+        else:
+            tokenizer = MBartTokenizerFast.from_pretrained(model_args.model_name_or_path)
         model = MBartForConditionalGeneration.from_pretrained(model_args.model_name_or_path, config=config)
     elif 'mbart-large-50' in model_args.model_name_or_path:
         config = MBartConfig.from_pretrained(model_args.model_name_or_path)
-        tokenizer = MBart50TokenizerFast.from_pretrained(model_args.model_name_or_path)
+        if data_args.use_slow_tokenizer:
+            tokenizer = MBartTokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False) #:todo: 这里是否需要换成 MBart50Tokenizer？
+        else:
+            tokenizer = MBartTokenizerFast.from_pretrained(model_args.model_name_or_path)
         model = MBartForConditionalGeneration.from_pretrained(model_args.model_name_or_path, config=config)
     elif 'm2m100' in model_args.model_name_or_path:
         config = M2M100Config.from_pretrained(model_args.model_name_or_path)
@@ -577,10 +651,35 @@ if __name__ == "__main__":
         gen_kwargs=gen_kwargs
     )
 
+    # 13. ZY 增加 确定是否从检查点恢复训练
+    resume_from_checkpoint = None
+    if resume_training_from_checkpoint != None:
+        if isinstance(resume_training_from_checkpoint, str):
+            resume_from_checkpoint = resume_training_from_checkpoint
+        else:
+            resume_from_checkpoint = get_last_checkpoint(training_args.output_dir)
+
+    if resume_from_checkpoint != None:
+        logger.info(f"*** Resuming training from checkpoint: {resume_from_checkpoint} ***")
+        # 尝试加载旧的日志历史记录
+        old_log_history_file = os.path.join(resume_from_checkpoint, "training_log_history.pkl")
+        if os.path.exists(old_log_history_file):
+            with open(old_log_history_file, "rb") as f:
+                old_log_history = pickle.load(f)
+            logger.info(f"Loaded {len(old_log_history)} entries from previous log history.")
+        else:
+            old_log_history = []
+            logger.warning("Could not find previous training log history to merge.")
+    else:
+        old_log_history = []
+
     # 13. Training
     if training_args.do_train:
         logger.info("*** Train ***")
-        train_result = trainer.train()
+        if resume_from_checkpoint!=None:
+            train_result = trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+        else:
+            train_result = trainer.train()
         trainer.save_model()
 
         metrics = train_result.metrics
