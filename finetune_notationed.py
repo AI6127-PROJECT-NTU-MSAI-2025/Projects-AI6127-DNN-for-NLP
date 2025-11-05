@@ -43,14 +43,17 @@ import transformers
 from transformers import (
     MT5Config,
     T5TokenizerFast,
+    T5Tokenizer,
     MBartConfig,
     MBart50TokenizerFast,
+    MBart50Tokenizer,
     MBartTokenizerFast,
+    MBartTokenizer,
     M2M100Config,
     M2M100Tokenizer,
     # HfArgumentParser, # 移除：不再需要命令行解析
     TrainingArguments,
-    set_seed
+    set_seed, TFOpenAIGPTDoubleHeadsModel
 )
 from transformers.trainer_callback import EarlyStoppingCallback
 from transformers import T5ForConditionalGeneration, MBartForConditionalGeneration, \
@@ -98,6 +101,9 @@ class DataTrainingArguments:
     max_predict_samples: Optional[int] = field(default=None)
     num_beams: Optional[int] = field(default=3)
     ignore_pad_token_for_loss: bool = field(default=True)
+    length_penalty: Optional[float] = field(default=1.0)
+    no_repeat_ngram_size: Optional[int] = field(default=0)
+    use_slow_tokenizer: bool = field(default=False)
 
 
 @dataclass
@@ -171,6 +177,9 @@ def get_gen_kwargs(model_name: str, tokenizer: Any, model: Any, data_args: DataT
     gen_kwargs = {
         "max_length": data_args.val_max_target_length,
         "num_beams": data_args.num_beams,
+        "length_penalty":data_args.length_penalty,
+        "no_repeat_ngram_size":data_args.no_repeat_ngram_size,
+        
         "early_stopping": True,
         "decoder_start_token_id": decoder_start_token_id,
         "eos_token_id": eos_token_id
@@ -202,9 +211,22 @@ def get_preprocess_function(tokenizer: Any, model: Any, data_args: DataTrainingA
             else:
                 src, lan = src_line[:-3], src_line[-3:]
             lan_to_token = {lan: lan}
-
-            src_tokens = tokenizer.tokenize(src, max_length=data_args.max_source_length, padding=False, truncation=True)
-            tgt_tokens = tokenizer.tokenize(tgt_line, max_length=max_target_length, padding=False, truncation=True)
+            ##ZY 251105 修改 慢速tokenizer
+            if data_args.use_slow_tokenizer:
+                # 1. 对 src 文本进行分词，移除不支持的参数
+                src_tokens = tokenizer.tokenize(src) 
+                # 2. 手动应用源文本截断 (Truncation)
+                if data_args.max_source_length is not None:
+                    src_tokens = src_tokens[:data_args.max_source_length]
+                # 3. 对 tgt 文本进行分词，移除不支持的参数
+                tgt_tokens = tokenizer.tokenize(tgt_line)
+                # 4. 手动应用目标文本截断 (Truncation)
+                if max_target_length is not None:
+                    # 目标序列的长度需要为后面手动添加 EOS token 留出 1 个位置
+                    tgt_tokens = tgt_tokens[:max_target_length - 1]
+            else:
+                src_tokens = tokenizer.tokenize(src, max_length=data_args.max_source_length, padding=False, truncation=True)
+                tgt_tokens = tokenizer.tokenize(tgt_line, max_length=max_target_length, padding=False, truncation=True)
 
             if tgt_tokens and tgt_tokens[-1] != tokenizer.eos_token:
                 tgt_tokens.append(tokenizer.eos_token)
@@ -264,7 +286,7 @@ def compute_score(preds: List[str], refs: List[str]) -> Dict[str, float]:
     score = {}
     bleu = sacrebleu.corpus_bleu(preds, [refs])
     score['bleu'] = bleu.score
-
+    '''
     preds_tokenized = [pred.split() for pred in preds]
     refs_tokenized = [[ref.split()] for ref in refs]
     try:
@@ -277,9 +299,24 @@ def compute_score(preds: List[str], refs: List[str]) -> Dict[str, float]:
     except ZeroDivisionError as _:
         logger.info('the nltk bleu score is invalid')
         bleu_score = [0] * 2
-
+    #ZY 251105修改 不再使用两个不同的库计算bleu
     for i, n in enumerate([1, 2]):
         score[f'bleu-{n}'] = bleu_score[i] * 100
+    '''
+    # 3. 使用 sacrebleu 的 n-gram 精度 (precisions) 代替 NLTK 结果。
+    # sacrebleu.precisions 包含 [P1, P2, P3, P4] 精度，它们都在 0-100 范围内。
+    if len(bleu.precisions) >= 2:
+        # BLEU-1 对应的 1-gram 精度 P1 (0-100)
+        score['bleu-1'] = bleu.precisions[0]
+        # BLEU-2 对应的 2-gram 精度 P2 (0-100)
+        score['bleu-2'] = bleu.precisions[1]
+    else:
+        # 如果 sacrebleu 结果中没有 precisions，则置零
+        score['bleu-1'] = 0.0
+        score['bleu-2'] = 0.0
+        
+    # 移除原来使用 nltk 计算 bleu-1 和 bleu-2 的所有代码
+    # preds_tokenized = [pred.split() for pred in preds]
 
     return score
 
@@ -351,7 +388,6 @@ if __name__ == "__main__":
     cache_dir='.\cache'
 
     ##ZY 251104 增加功能 从检查点接着训练 （注意！！ 请在从更新文件前备份自己训练时设置的参数）
-    ##注意：如果先前的训练已经结束，你可以通过增大max_step继续训练，但如果你使用了cosine annealing的LR schedule，继续训练会导致你的新增训练步数继续变小，基本为0
     resume_training_from_checkpoint = None  #不识别检查点，直接从头训练
     #resume_training_from_checkpoint = True  #识别最后一个检查点继续训练
     #resume_training_from_checkpoint = "./fine_tune_checkpoints/mt5_finetune/checkpoint-10000" #从某个特定检查点继续训练
@@ -371,10 +407,13 @@ if __name__ == "__main__":
         train_file="train.jsonl",   #最终的训练集位置会被拼接为 data_path/data_name/train_file
         validation_file="dev.jsonl",
         max_source_length=512,
-        max_target_length=128,
-        val_max_target_length=64,
-        num_beams=3,
+        max_target_length=256,
+        val_max_target_length=256,
+        num_beams=5,
         preprocessing_num_workers=4,
+        length_penalty=1.5, #新增 长度惩罚 防止模型生成保守的过短的序列
+        no_repeat_ngram_size=3,  #新增 重复生成惩罚 防止模型说车轱辘话
+        use_slow_tokenizer=True  #新增 可以使用慢速编码器来提高模型效果，避免生成大量的 <unk> 标记
         ##调试用参数，只用于测试代码能不能跑 正常训练时请把这三个注释掉 否则会梯度爆炸
         #max_train_samples=10,
         #max_eval_samples=10,
@@ -387,21 +426,21 @@ if __name__ == "__main__":
         do_train=True,
         do_eval=True,
         num_train_epochs=1,
-        max_steps=11000,  #最大步数，到此步会停止训练，如果不需要最大步数请注释掉 测试代码我放的很小
+        max_steps=10000,  #最大步数，到此步会停止训练，如果不需要最大步数请注释掉 测试代码我放的很小
 
         per_device_train_batch_size=8,
         gradient_accumulation_steps=2, #用gradient_accumulation_steps获得等效8*2=16的训练batch, 但会降低一定训练速度 use at your own risk
         
-        per_device_eval_batch_size=16,
+        per_device_eval_batch_size=32,
 
-        learning_rate=5e-6,  #初始学习率
+        learning_rate=1e-5,  #初始学习率
         lr_scheduler_type='cosine',
-        warmup_ratio=0.1,
+        warmup_ratio=0.05,
         optim='adamw_torch',
         max_grad_norm=1.0, #设置梯度上限防止梯度爆炸
 
         save_strategy="steps", #也可以用epoch
-        save_steps=1000,
+        save_steps=2000,
         eval_strategy="steps",  #在部分 Seq2SeqTrainingArguments 版本中，这里可能需要修改为 evaluation_strategy
         eval_steps=1000,
         logging_steps=10,  #多少step输出一次训练状况（这个值会保留在.pkl中绘图）
@@ -410,7 +449,7 @@ if __name__ == "__main__":
         greater_is_better=True,        #metric_for_best_model 是值越大越好 (如 BLEU) 还是越小越好 (如 Loss)
         predict_with_generate=True,
         prediction_loss_only=False,
-        early_stopping_patience=5,
+        #early_stopping_patience=5,
         fp16=False,  #fp16可以加速训练，但可能导致训练不稳定，use it at your own risk
         seed=42,
         report_to="none" # 若要启用日志记录器，请使用cmd运行，并输入你的API密钥，比如  wandb.login(key="[您的 API 密钥]")
@@ -466,15 +505,24 @@ if __name__ == "__main__":
     config, tokenizer, model = None, None, None
     if 't5' in model_args.model_name_or_path:
         config = MT5Config.from_pretrained(model_args.model_name_or_path)
-        tokenizer = T5TokenizerFast.from_pretrained(model_args.model_name_or_path)
+        if data_args.use_slow_tokenizer:
+            tokenizer = T5Tokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False)
+        else:
+            tokenizer = T5TokenizerFast.from_pretrained(model_args.model_name_or_path) ##ZY 20251105修改 添加慢速5Tokenizer
         model = T5ForConditionalGeneration.from_pretrained(model_args.model_name_or_path, config=config)
     elif 'mbart-25' in model_args.model_name_or_path:
         config = MBartConfig.from_pretrained(model_args.model_name_or_path)
-        tokenizer = MBartTokenizerFast.from_pretrained(model_args.model_name_or_path)
+        if data_args.use_slow_tokenizer:
+            tokenizer = MBartTokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False) #:todo: mbart的慢速tokenizer我没有测试，如果出现问题，可能需要修改 preprocess_function
+        else:
+            tokenizer = MBartTokenizerFast.from_pretrained(model_args.model_name_or_path)
         model = MBartForConditionalGeneration.from_pretrained(model_args.model_name_or_path, config=config)
     elif 'mbart-large-50' in model_args.model_name_or_path:
         config = MBartConfig.from_pretrained(model_args.model_name_or_path)
-        tokenizer = MBart50TokenizerFast.from_pretrained(model_args.model_name_or_path)
+        if data_args.use_slow_tokenizer:
+            tokenizer = MBartTokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False) #:todo: 这里是否需要换成 MBart50Tokenizer？
+        else:
+            tokenizer = MBartTokenizerFast.from_pretrained(model_args.model_name_or_path)
         model = MBartForConditionalGeneration.from_pretrained(model_args.model_name_or_path, config=config)
     elif 'm2m100' in model_args.model_name_or_path:
         config = M2M100Config.from_pretrained(model_args.model_name_or_path)
