@@ -48,6 +48,7 @@ from transformers import (
     MBart50TokenizerFast,
     MBart50Tokenizer,
     MBartTokenizerFast,
+    MBartTokenizer,
     M2M100Config,
     M2M100Tokenizer,
     # HfArgumentParser, # 移除：不再需要命令行解析
