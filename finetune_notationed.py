@@ -345,10 +345,11 @@ if __name__ == "__main__":
 
     ## 你可以在CMD/bash用huggingface-cli下载，也可以直接把模型名称填到model_name_or_path里面
     ## huggingface-cli download facebook/m2m100_418M --local-dir ./models
+    resume_training_from_checkpoint = True
 
     ########## 需要修改的参数 #########
     model_args = ModelArguments(
-        model_name_or_path="facebook/m2m100_418M",  # 改为M2M100模型，可选: m2m100_418M, m2m100_1.2B
+        model_name_or_path="facebook/m2m100_1.2B",  # 改为M2M100模型，可选: m2m100_418M, m2m100_1.2B
     )
 
     data_args = DataTrainingArguments(
@@ -368,11 +369,11 @@ if __name__ == "__main__":
     )
 
     training_args = Seq2SeqTrainingArguments(
-        output_dir="./fine_tune_checkpoints/m2m100_multilingual",  # 修改：多语言任务专用文件夹
+        output_dir="./fine_tune_checkpoints/m2m100_1_2b_multilingual",  # 修改：多语言任务专用文件夹
         do_train=True,
         do_eval=True,  
         do_predict=True,  # 启用预测
-        num_train_epochs=5,  # 增加训练轮数
+        num_train_epochs=6,  # 增加训练轮数
         max_steps=-1,  
 
         per_device_train_batch_size=16,
@@ -385,9 +386,11 @@ if __name__ == "__main__":
         optim='adamw_torch',
         max_grad_norm=1.0, #设置梯度上限防止梯度爆炸
 
-        save_strategy="epoch",  
-        eval_strategy="epoch",  
-        save_total_limit=4,
+        save_strategy="steps",  
+        eval_strategy="steps",
+        save_steps=500,
+        eval_steps=500,
+        save_total_limit=1,
         logging_steps=50,
         load_best_model_at_end=True,  # 加载最佳模型  
         metric_for_best_model="eval_bleu",  # 修正为带前缀的指标名  

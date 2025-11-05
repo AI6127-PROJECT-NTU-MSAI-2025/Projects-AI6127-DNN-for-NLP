@@ -5,7 +5,7 @@ import numpy as np
 
 ######修改参数########
 ## 在这里输入check_point文件夹位置
-checkpoint_path = "fine_tune_checkpoints/m2m100_multilingual"
+checkpoint_path = "fine_tune_checkpoints/m2m100_1_2b_multilingual"
 # 设定 Batch Size (用于横轴缩放)
 train_batch_size = 16
 # 设定平滑窗口大小 (仅用于训练 Loss)
