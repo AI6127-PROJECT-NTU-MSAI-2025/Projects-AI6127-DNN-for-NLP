@@ -48,12 +48,11 @@ from transformers import (
     MBart50TokenizerFast,
     MBart50Tokenizer,
     MBartTokenizerFast,
-    MBartTokenizer,
     M2M100Config,
     M2M100Tokenizer,
     # HfArgumentParser, # 移除：不再需要命令行解析
     TrainingArguments,
-    set_seed, TFOpenAIGPTDoubleHeadsModel
+    set_seed
 )
 from transformers.trainer_callback import EarlyStoppingCallback
 from transformers import T5ForConditionalGeneration, MBartForConditionalGeneration, \
@@ -426,14 +425,14 @@ if __name__ == "__main__":
         do_train=True,
         do_eval=True,
         num_train_epochs=1,
-        max_steps=10000,  #最大步数，到此步会停止训练，如果不需要最大步数请注释掉 测试代码我放的很小
+        max_steps=30000,  #最大步数，到此步会停止训练，如果不需要最大步数请注释掉 测试代码我放的很小
 
         per_device_train_batch_size=8,
         gradient_accumulation_steps=2, #用gradient_accumulation_steps获得等效8*2=16的训练batch, 但会降低一定训练速度 use at your own risk
         
         per_device_eval_batch_size=32,
 
-        learning_rate=1e-5,  #初始学习率
+        learning_rate=5e-5,  #初始学习率
         lr_scheduler_type='cosine',
         warmup_ratio=0.05,
         optim='adamw_torch',
@@ -513,14 +512,14 @@ if __name__ == "__main__":
     elif 'mbart-25' in model_args.model_name_or_path:
         config = MBartConfig.from_pretrained(model_args.model_name_or_path)
         if data_args.use_slow_tokenizer:
-            tokenizer = MBartTokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False) #:todo: mbart的慢速tokenizer我没有测试，如果出现问题，可能需要修改 preprocess_function
+            tokenizer = MBartTokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False)
         else:
             tokenizer = MBartTokenizerFast.from_pretrained(model_args.model_name_or_path)
         model = MBartForConditionalGeneration.from_pretrained(model_args.model_name_or_path, config=config)
     elif 'mbart-large-50' in model_args.model_name_or_path:
         config = MBartConfig.from_pretrained(model_args.model_name_or_path)
         if data_args.use_slow_tokenizer:
-            tokenizer = MBartTokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False) #:todo: 这里是否需要换成 MBart50Tokenizer？
+            tokenizer = MBartTokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False)
         else:
             tokenizer = MBartTokenizerFast.from_pretrained(model_args.model_name_or_path)
         model = MBartForConditionalGeneration.from_pretrained(model_args.model_name_or_path, config=config)
