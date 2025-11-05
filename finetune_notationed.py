@@ -520,7 +520,7 @@ if __name__ == "__main__":
     elif 'mbart-large-50' in model_args.model_name_or_path:
         config = MBartConfig.from_pretrained(model_args.model_name_or_path)
         if data_args.use_slow_tokenizer:
-            tokenizer = MBartTokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False)
+            tokenizer = MBartTokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False) #:todo 是否应该换成MBart50Tokenizer？
         else:
             tokenizer = MBartTokenizerFast.from_pretrained(model_args.model_name_or_path)
         model = MBartForConditionalGeneration.from_pretrained(model_args.model_name_or_path, config=config)
