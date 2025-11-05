@@ -1,0 +1,55 @@
+{
+    "metrics": {
+        "eval_loss": 7.969906806945801,
+        "eval_bleu": 0.07782337506728974,
+        "eval_bleu-1": 0.20161290322580636,
+        "eval_bleu-2": 0.14372564056821066,
+        "eval_gen_len": 49.6,
+        "eval_runtime": 2.0494,
+        "eval_samples_per_second": 4.88,
+        "eval_steps_per_second": 0.488,
+        "epoch": 40.0
+    },
+    "outputs": [
+        {
+            "prediction": "Can Can you manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage manage",
+            "label": "Why not? See."
+        },
+        {
+            "prediction": "good food good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good good",
+            "label": "Oh, great! It's delicious. You see, I am already putting on weight. There is one thing I don't like however, MSG."
+        },
+        {
+            "prediction": "??????????????????????????????????????????????????????????",
+            "label": "According to some studies it may cause cancer."
+        },
+        {
+            "prediction": "to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to to",
+            "label": "I just happen to have a question for you guys. Why do the Chinese cook the vegetables? You see what I mean is that most vitamin are destroyed when heated."
+        },
+        {
+            "prediction": "????????????????????????????????????????????????????????????",
+            "label": "Yes, how do I get to your shop from Chilin?"
+        },
+        {
+            "prediction": "Hi Bill, Hi Hi Hi Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Bill Hi Hi Hi Hi Hi Hi Hi Hi Bill Bill Bill Bill Bill",
+            "label": "Jane, I ’ m on the other line, can you hang on for a second?"
+        },
+        {
+            "prediction": "to to to to to to to to to to to to to to to to to to to to to can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can can",
+            "label": "Right away, sir."
+        },
+        {
+            "prediction": "check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check check",
+            "label": "Yes, sir, it is."
+        },
+        {
+            "prediction": "Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did Did",
+            "label": "Just Mr. White."
+        },
+        {
+            "prediction": "par par hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair hair",
+            "label": "Andrew, this is Linda Chen."
+        }
+    ]
+}

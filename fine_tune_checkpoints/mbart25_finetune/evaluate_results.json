@@ -1,0 +1,12 @@
+{
+    "epoch": 2.1946,
+    "eval_samples": 6400,
+    "evaluate_bleu": 0.8822,
+    "evaluate_bleu-1": 28.1026,
+    "evaluate_bleu-2": 3.6671,
+    "evaluate_gen_len": 2.5269,
+    "evaluate_loss": 2.5892,
+    "evaluate_runtime": 313.7148,
+    "evaluate_samples_per_second": 20.401,
+    "evaluate_steps_per_second": 1.275
+}
