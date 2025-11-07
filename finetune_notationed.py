@@ -27,7 +27,7 @@ warnings.filterwarnings(
     module="transformers"
 )
 
-
+import evaluate
 import collections
 import os
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
@@ -49,12 +49,11 @@ from transformers import (
     MBart50TokenizerFast,
     MBart50Tokenizer,
     MBartTokenizerFast,
-    MBartTokenizer,
     M2M100Config,
     M2M100Tokenizer,
     # HfArgumentParser, # 移除：不再需要命令行解析
     TrainingArguments,
-    set_seed, TFOpenAIGPTDoubleHeadsModel
+    set_seed
 )
 from transformers.trainer_callback import EarlyStoppingCallback
 from transformers import T5ForConditionalGeneration, MBartForConditionalGeneration, \
@@ -271,8 +270,70 @@ def postprocess_text(preds: List[str], refs: List[str]) -> Tuple[List[str], List
     refs = [ref.strip() for ref in refs]
     return preds, refs
 
-
 def compute_score(preds: List[str], refs: List[str]) -> Dict[str, float]:
+    #计算 BLEU, ROUGE-L 和 Distinct-N 指
+
+    score = {}
+    # 1. BLEU (只使用 sacrebleu) 衡量生成文本中有多少内容出现在了参考文本中  通常用于机器翻译任务
+    bleu = sacrebleu.corpus_bleu(preds, [refs])
+    score['bleu'] = bleu.score
+
+    if len(bleu.precisions) >= 2:
+        score['bleu-1'] = bleu.precisions[0]
+        score['bleu-2'] = bleu.precisions[1]
+    else:
+        score['bleu-1'] = 0.0
+        score['bleu-2'] = 0.0
+
+    # 2. ROUGE
+    # 衡量预测文本和参考文本之间的公共子序列匹配度  通常用于摘要任务
+    try:
+        # 确保环境中已安装 `evaluate` 和 `rouge-score`
+        rouge_metric = evaluate.load("rouge")
+        rouge_results = rouge_metric.compute(predictions=preds, references=refs, rouge_types=["rouge1", "rouge2", "rougeL"])
+        # ROUGE 结果通常是 f-measure (F1 Score)，转换为百分比
+        score['rouge1'] = rouge_results['rouge1'] * 100
+        score['rouge2'] = rouge_results['rouge2'] * 100
+        score['rougeL'] = rouge_results['rougeL'] * 100
+    except Exception as e:
+        logger.warning(f"ROUGE metric calculation failed (ensure 'rouge-score' is installed): {e}. Skipping ROUGE-L.")
+        score['rouge1'] = 0.0
+        score['rouge2'] = 0.0
+        score['rougeL'] = 0.0
+
+    # 3. Distinct-N
+    # 衡量生成文本的多样性，基于字符/字计算以更好地适应中文分词  常用与对话系统评估
+    def calculate_distinct_n(sentences, n):
+        """计算 Distinct-N (基于字符/字)"""
+        if not sentences:
+            return 0.0
+        n_grams = collections.defaultdict(int)
+        total_n_grams = 0
+        for sentence in sentences:
+            # 将句子中的空格移除后，按字符/字切分
+            tokens = list("".join(sentence.split()))
+
+            for i in range(len(tokens) - n + 1):
+                n_gram = tuple(tokens[i:i + n])
+                n_grams[n_gram] += 1
+                total_n_grams += 1
+
+        if total_n_grams == 0:
+            return 0.0
+        return len(n_grams) / total_n_grams * 100.0  # 转换为百分比
+    # 计算 Distinct-1 和 Distinct-2
+    try:
+        score['distinct-1'] = calculate_distinct_n(preds, 1)
+        score['distinct-2'] = calculate_distinct_n(preds, 2)
+    except Exception as e:
+        logger.warning(f"distinct-n metric calculation failed: {e}. Skipping distinct-n.")
+        score['distinct-1'] = 0.0
+        score['distinct-2'] = 0.0
+    return score
+
+
+def compute_score_oldbk(preds: List[str], refs: List[str]) -> Dict[str, float]:
+    # ... (compute_score 逻辑与原文件相同)
     score = {}
     bleu = sacrebleu.corpus_bleu(preds, [refs], tokenize='13a')
     score['bleu'] = bleu.score
@@ -504,14 +565,14 @@ if __name__ == "__main__":
     elif 'mbart-25' in model_args.model_name_or_path:
         config = MBartConfig.from_pretrained(model_args.model_name_or_path)
         if data_args.use_slow_tokenizer:
-            tokenizer = MBartTokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False) #:todo: mbart的慢速tokenizer我没有测试，如果出现问题，可能需要修改 preprocess_function
+            tokenizer = MBartTokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False)
         else:
             tokenizer = MBartTokenizerFast.from_pretrained(model_args.model_name_or_path)
         model = MBartForConditionalGeneration.from_pretrained(model_args.model_name_or_path, config=config)
     elif 'mbart-large-50' in model_args.model_name_or_path:
         config = MBartConfig.from_pretrained(model_args.model_name_or_path)
         if data_args.use_slow_tokenizer:
-            tokenizer = MBartTokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False) #:todo: 这里是否需要换成 MBart50Tokenizer？
+            tokenizer = MBartTokenizer.from_pretrained(model_args.model_name_or_path,use_fast=False)
         else:
             tokenizer = MBartTokenizerFast.from_pretrained(model_args.model_name_or_path)
         model = MBartForConditionalGeneration.from_pretrained(model_args.model_name_or_path, config=config)

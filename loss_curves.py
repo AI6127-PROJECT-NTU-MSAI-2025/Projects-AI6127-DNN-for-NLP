@@ -7,7 +7,7 @@ import numpy as np
 ## 在这里输入check_point文件夹位置
 checkpoint_path = "fine_tune_checkpoints/m2m100_1_2b_multilingual"
 # 设定 Batch Size (用于横轴缩放)
-train_batch_size = 16
+train_batch_size = 16 / 2
 # 设定平滑窗口大小 (仅用于训练 Loss)
 SMOOTHING_WINDOW = 30
 #图片保存位置
@@ -71,7 +71,6 @@ ax1.grid(True)
 ax2.set_title('Evaluation BLEU Scores')
 ax2.set_xlabel(f'Effective Training Step (Scaled by Batch Size {train_batch_size})')
 ax2.set_ylabel('BLEU Score')
-
 if not eval_df.empty:
     # 绘制 eval_bleu (总分数)
     ax2.plot(eval_df['scaled_step'], eval_df['eval_bleu'],
@@ -97,6 +96,8 @@ if not eval_df.empty:
 
 ax2.legend()
 ax2.grid(True)
+
+# 若要增加子图，复制上面的代码改一改即可
 
 # 调整子图间距
 plt.tight_layout()
