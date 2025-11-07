@@ -30,6 +30,7 @@ warnings.filterwarnings(
 
 import collections
 import os
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 import sys
 import re
 from dataclasses import dataclass, field
@@ -377,7 +378,7 @@ if __name__ == "__main__":
     cache_dir='cache'
 
     ##ZY 251104 增加功能 从检查点接着训练 （注意！！ 请在从更新文件前备份自己训练时设置的参数）
-    resume_training_from_checkpoint = "fine_tune_checkpoints/m2m100_1_2b_multilingual/checkpoint-11000"
+    resume_training_from_checkpoint = "fine_tune_checkpoints/m2m100_1_2b_multilingual"
     #resume_training_from_checkpoint = True  #识别最后一个检查点继续训练
     #resume_training_from_checkpoint = "./fine_tune_checkpoints/mt5_finetune/checkpoint-10000" #从某个特定检查点继续训练
 
@@ -414,7 +415,7 @@ if __name__ == "__main__":
         do_train=True,
         do_eval=True,  
         do_predict=True,  # 启用预测
-        num_train_epochs=6,  # 增加训练轮数
+        num_train_epochs=10,  # 增加训练轮数
         max_steps=-1,  
 
         per_device_train_batch_size=16,
@@ -438,7 +439,7 @@ if __name__ == "__main__":
         greater_is_better=True,
         predict_with_generate=True,
         prediction_loss_only=False,
-        early_stopping_patience=5,
+        early_stopping_patience=15,
         fp16=False,  
         dataloader_pin_memory=True,  
         seed=42,

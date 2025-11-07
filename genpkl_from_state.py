@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- 你需要修改的路径 ---
-CHECKPOINT_DIR = "fine_tune_checkpoints/m2m100_1_2b_multilingual/checkpoint-11000" 
+CHECKPOINT_DIR = "fine_tune_checkpoints/m2m100_1_2b_multilingual/checkpoint-17000" 
 
 # 2. 你想要生成的 .pkl 文件的完整路径
 OUTPUT_PKL_FILE = "fine_tune_checkpoints/m2m100_1_2b_multilingual/training_log_history.pkl"
