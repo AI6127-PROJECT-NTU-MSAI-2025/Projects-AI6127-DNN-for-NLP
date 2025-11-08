@@ -39,9 +39,11 @@ if not train_df.empty:
     # 应用指数加权移动平均 (EWMA)
     train_df['smoothed_loss'] = train_df['loss'].ewm(span=SMOOTHING_WINDOW, adjust=False).mean()
 
-# 5. 绘图：创建包含两个子图的画布
+# 5. 绘图：创建包含四个子图的画布
 # ax1 用于 Loss，ax2 用于 BLEU
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)  # sharex=True 确保横轴一致
+#fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)  # sharex=True 确保横轴一致
+fig,(ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(12, 16), sharex=True)  # 增加到四个子图
+
 
 # --- 子图 1: Loss 曲线 ---
 ax1.set_title('Training and Evaluation Loss Curve (Smoothed)')
@@ -96,6 +98,55 @@ if not eval_df.empty:
 
 ax2.legend()
 ax2.grid(True)
+
+# --- 子图 3: RoUGE-L 指标曲线 ---
+ax3.set_title('Evaluation ROUGE-L Scores')
+ax3.set_xlabel(f'Effective Training Step (Scaled by Batch Size {train_batch_size})')
+ax3.set_ylabel('ROUGE-L Score')
+if not eval_df.empty:
+    # 绘制 eval_rouge1 (ROUGE-1 分数)
+    ax3.plot(eval_df['scaled_step'], eval_df['eval_rouge1'],
+             label='ROUGE-1 Score',
+             marker='^',
+             linestyle='--',
+             color='orange')
+
+    # 绘制 eval_rouge2 (ROUGE-2 分数)
+    ax3.plot(eval_df['scaled_step'], eval_df['eval_rouge2'],
+             label='ROUGE-2 Score',
+             marker='s',
+             linestyle=':',
+             color='purple')
+
+    # 绘制 eval_rougeL (ROUGE-L 分数)
+    ax3.plot(eval_df['scaled_step'], eval_df['eval_rougeL'],
+             label='ROUGE-L Score',
+             marker='o',
+             linestyle='-',
+             color='green',
+             linewidth=2)
+
+ax3.legend()
+ax3.grid(True)
+
+# --- 子图 4: Distinct-1 和 Distinct-2 指标曲线 ---
+ax4.set_title('Evaluation Distinct-1 and Distinct-2 Scores')
+ax4.set_xlabel(f'Effective Training Step (Scaled by Batch Size {train_batch_size})')
+ax4.set_ylabel('Distinct Scores')
+if not eval_df.empty:
+    # 绘制 eval_distinct-1
+    ax4.plot(eval_df['scaled_step'], eval_df['eval_distinct-1'],
+             label='Distinct-1 Score',
+             marker='^',
+             linestyle='--',
+             color='orange')
+
+    # 绘制 eval_distinct-2
+    ax4.plot(eval_df['scaled_step'], eval_df['eval_distinct-2'],
+             label='Distinct-2 Score',
+             marker='s',
+             linestyle=':',
+             color='purple')
 
 # 若要增加子图，复制上面的代码改一改即可
 
