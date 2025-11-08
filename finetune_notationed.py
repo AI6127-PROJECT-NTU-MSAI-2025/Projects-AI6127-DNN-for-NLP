@@ -440,8 +440,8 @@ if __name__ == "__main__":
 
     ##ZY 251104 增加功能 从检查点接着训练 （注意！！ 请在从更新文件前备份自己训练时设置的参数）
     #resume_training_from_checkpoint = "fine_tune_checkpoints/m2m100_1_2b_multilingual"
-    resume_training_from_checkpoint = None
-    #resume_training_from_checkpoint = "./fine_tune_checkpoints/mt5_finetune/checkpoint-10000" #从某个特定检查点继续训练
+    #resume_training_from_checkpoint = None
+    resume_training_from_checkpoint = "fine_tune_checkpoints/m2m100_1_2b_multilingual/checkpoint-8500" #从某个特定检查点继续训练
 
     ## 你可以在CMD/bash用huggingface-cli下载，也可以直接把模型名称填到model_name_or_path里面
     ## huggingface-cli download google/mt5-base --local-dir ./models

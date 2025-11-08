@@ -71,7 +71,7 @@ ax1.grid(True)
 
 # --- 子图 2: BLEU 指标曲线 ---
 ax2.set_title('Evaluation BLEU Scores')
-ax2.set_xlabel(f'Effective Training Step (Scaled by Batch Size {train_batch_size})')
+#与后续公用x轴
 ax2.set_ylabel('BLEU Score')
 if not eval_df.empty:
     # 绘制 eval_bleu (总分数)
@@ -101,7 +101,6 @@ ax2.grid(True)
 
 # --- 子图 3: RoUGE-L 指标曲线 ---
 ax3.set_title('Evaluation ROUGE-L Scores')
-ax3.set_xlabel(f'Effective Training Step (Scaled by Batch Size {train_batch_size})')
 ax3.set_ylabel('ROUGE-L Score')
 if not eval_df.empty:
     # 绘制 eval_rouge1 (ROUGE-1 分数)
